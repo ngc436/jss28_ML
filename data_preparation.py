@@ -22,7 +22,6 @@ def create_df(dir_name):
             list_of_frames.append(df)
     result = pd.concat(list_of_frames)
     result.apply(pd.to_numeric)
-    result.names = COLUMN_NAMES
     return result
 
 
