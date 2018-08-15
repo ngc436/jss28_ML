@@ -47,8 +47,7 @@ if __name__ == '__main__':
 # CODE MICHAEL
     df =  pd.read_csv('prepared.csv')
     df_train = df[['T_xacc', 'Action', 'Subject', 'Segment']]
-    df_train.sort_values(['Action', 'Segment'], ascending=[1,1])
-
+    #f_train.sort_values(['Action', 'Segment'], ascending=[1, 1])
 
 # DTW
 def DTWDistance(s1, s2):
