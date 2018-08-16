@@ -654,8 +654,9 @@ neural.score(X_test,list(y_test))
 # three dimension
 df_train_all = df[['T_xacc', 'T_yacc', 'T_zacc', 'Action', 'Subject', 'Segment']]
 
+origin = df[['T_xacc', 'T_yacc', 'T_zacc']][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
+
 def distance_three(df):
-    origin = df[['T_xacc', 'T_yacc', 'T_zacc']][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
     distance = pd.DataFrame(index=list(range(0, 9120)), columns=['observation', 'distance_x', 'distance_y', 'distance_z'])
     for i in range(1, 20):
         for j in range(1, 61):
@@ -756,3 +757,5 @@ neigh.score(X_test,list(y_test))
 import multiprocessing
 
 multiprocessing.cpu_count()
+
+
