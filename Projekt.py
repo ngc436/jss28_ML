@@ -87,6 +87,7 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
 ################### FOR ALL DATA
 #################################
 
+####### DATA ENGINEERING #########
 columns = ['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'LA_xacc', 'LA_yacc', 'LA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc', 'LL_xacc', 'LL_yacc', 'LL_zacc']
 origin = df[columns][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
 
@@ -161,25 +162,19 @@ X_train, X_test, y_train, y_test = train_test_split(result_normalised_15d[['0', 
 X_train.columns = ['Tx', 'Ty', 'Tz', 'RAx', 'RAy', 'RAz', 'LAx', 'LAy', 'LAz', 'RLx', 'RLy', 'RLz', 'LLx', 'LLy', 'LLz']
 
 
-###### CLASSIFICATION
-### KNeighbors
+##################### CLASSIFICATION #########################
+
+#### KNEIGHBORS ####
 neigh = KNeighborsClassifier(n_neighbors=5)
 neigh.fit(X_train, list(y_train))
 neigh.score(X_test, list(y_test))
 
 # Parameter tuning
-
-# The list of hyper-parameters we want to optimize. For each one we define the bounds,
-# the corresponding scikit-learn parameter name, as well as how to sample values
-# from that dimension (`'log-uniform'` for the learning rate)
 space = [Integer(1, 100, name='n_neighbors'),
          Categorical(['kd_tree', 'ball_tree', 'brute'], name='algorithm'),
          Categorical(['uniform', 'distance'], name='weights'),
          Integer(1, 3, name='p')]
 
-# this decorator allows your objective function to receive a the parameters as
-# keyword arguments. This is particularly convenient when you want to set scikit-learn
-# estimator parameters
 @use_named_args(space)
 def objective(**params):
     reg = KNeighborsClassifier()
@@ -189,25 +184,18 @@ def objective(**params):
 # Optimize
 res_gp_KN_all = gp_minimize(objective, space, n_calls=100, random_state=0)
 
+# Print results
 "Best score=%.4f" % res_gp_KN_all.fun
+print(res_gp_KN_all.x)
 
-print("""Best parameters:
-- max_depth=%d
-- learning_rate=%.6f
-- max_features=%d
-- min_samples_split=%d
-- min_samples_leaf=%d""" % (res_gp_KN_all.x[0], res_gp_KN_all.x[1],
-                            res_gp_KN_all.x[2], res_gp_KN_all.x[3],
-                            res_gp_KN_all.x[4]))
-
-# PLot of convergence
-from skopt.plots import plot_convergence
+# Plot of convergence
 plot_convergence(res_gp_KN_all)
 
-neigh = KNeighborsClassifier(n_neighbors=1, algorithm='kd_tree', weights='uniform', p=1)
+# Performance on test data
+neigh = KNeighborsClassifier(n_neighbors=res_gp_KN_all.x[0], algorithm=res_gp_KN_all.x[1], weights=res_gp_KN_all.x[2], p=res_gp_KN_all.x[3])
 neigh.fit(X_train, list(y_train))
-neigh.predict(X_test)
 neigh.score(X_test, list(y_test))
+# Result - 0.9901315789473685
 
 # Visualization of results / confusion matrix
 # Compute confusion matrix
@@ -274,6 +262,9 @@ np.set_printoptions(precision=2)
 plt.figure()
 plot_confusion_matrix(cnf_matrix, classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], title='Confusion matrix')
 plt.show()
+
+
+
 
 
 ##### NEURAL NETWORK ########
