@@ -14,7 +14,7 @@ COLUMN_NAMES = ['T_xacc', 'T_yacc', 'T_zacc', 'T_xgyro', 'T_ygyro', 'T_zgyro', '
                 'RL_xacc', 'RL_yacc', 'RL_zacc', 'RL_xgyro', 'RL_ygyro', 'RL_zgyro', 'RL_xmag', 'RL_ymag', 'RL_zmag',
                 'LL_xacc', 'LL_yacc', 'LL_zacc', 'LL_xgyro', 'LL_ygyro', 'LL_zgyro', 'LL_xmag', 'LL_ymag', 'LL_zmag']
 
-ADDITIONAL = COLUMN_NAMES + ['Action','Subject', 'Segment']
+ADDITIONAL = COLUMN_NAMES + ['Action', 'Subject', 'Segment']
 
 
 
@@ -252,10 +252,404 @@ rforest.fit(X_train, list(y_train))
 rforest.predict(X_test)
 rforest.score(X_test,list(y_test))
 
+################ Add more dimension / We should probably concentrate only on the accelerator
+df.columns
+df_train_9d = df[['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc','RL_xacc', 'RL_yacc', 'RL_zacc', 'Action', 'Subject', 'Segment']]
+
+def distance_nine(df):
+    origin = df[['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc']][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
+    distance = pd.DataFrame(index=list(range(0, 1140)), columns=['Activity', 'distance_Tx', 'distance_Ty', 'distance_Tz', 'distance_Ax', 'distance_Ay', 'distance_Az', 'distance_Lx', 'distance_Ly', 'distance_Lz'])
+    for i in range(1, 20):
+        for j in range(1, 61):
+            distance['distance_Tx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_xacc'].values, df['T_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ty'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_yacc'].values, df['T_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Tz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_zacc'].values, df['T_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ax'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_xacc'].values, df['RA_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ay'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_yacc'].values, df['RA_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Az'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_zacc'].values, df['RA_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Lx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_xacc'].values, df['RL_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ly'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_yacc'].values, df['RL_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Lz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_zacc'].values, df['RL_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['Activity'][(i - 1) * 60 + j - 1] = i
+    return distance
+
+result_9d = distance_nine(df_train_9d)
+#ax = plt.axes(projection='3d')
+#colors = result_9d['observation']
+#ax.scatter(result_9d['distance_x'], result_9d['distance_y'], result_9d['distance_z'], c=colors)
+
+# NORMALISED
+min_max_scaler = preprocessing.MinMaxScaler()
+np_scaled = min_max_scaler.fit_transform(result_9d[['distance_Tx', 'distance_Ty', 'distance_Tz', 'distance_Ax', 'distance_Ay', 'distance_Az', 'distance_Lx', 'distance_Ly', 'distance_Lz']])
+result_normalised_9d = pd.DataFrame(np_scaled)
+result_normalised_9d['Activity'] = result_9d['Activity']
+#ax = plt.axes(projection='3d')
+#colors = result_normalised_9d['Activity']
+#ax.scatter(result_normalised_9d[0], result_normalised_9d[1], result_normalised_9d[2], c=colors)
+
+# Train test split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(result_normalised_9d[[0, 1, 2, 3, 4, 5, 6, 7, 8]], result_normalised_9d['Activity'], test_size=0.2, random_state=42)
+X_train.columns = ['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']
+
+#### KNeighbors
+from sklearn.neighbors import KNeighborsClassifier
+neigh = KNeighborsClassifier(n_neighbors=5)
+neigh.fit(X_train, list(y_train))
+neigh.predict(X_test)
+neigh.score(X_test,list(y_test))
+list(y_test) - neigh.predict(X_test)
+
+# Parameter tuning
+from sklearn.neighbors import KNeighborsClassifier
+from skopt.space import Real, Integer, Categorical
+from skopt.utils import use_named_args
+from sklearn.model_selection import cross_val_score
+
+# The list of hyper-parameters we want to optimize. For each one we define the bounds,
+# the corresponding scikit-learn parameter name, as well as how to sample values
+# from that dimension (`'log-uniform'` for the learning rate)
+space = [Integer(1, 100, name='n_neighbors'),
+         Categorical(['kd_tree', 'ball_tree', 'brute'], name='algorithm'),
+         Categorical(['uniform', 'distance'], name='weights'),
+         Integer(1, 3, name='p')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = KNeighborsClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=-1,
+                                    scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_KN = gp_minimize(objective, space, n_calls=100, random_state=0)
+
+"Best score=%.4f" % res_gp_KN.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_KN.x[0], res_gp_KN.x[1],
+                            res_gp_KN.x[2], res_gp_KN.x[3],
+                            res_gp_KN.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp)
+
+# On the test set
+neigh = KNeighborsClassifier(n_neighbors=1, algorithm='brute', weights='distance', p=2)
+neigh.fit(X_train, list(y_train))
+neigh.predict(X_test)
+neigh.score(X_test,list(y_test))
+
+
+######### Random Forest
+from sklearn.ensemble import RandomForestClassifier
+space = [Integer(1, 100, name='n_estimators'),
+         Categorical(['gini', 'entropy'], name='criterion'),
+         Integer(1, 100, name='max_depth'),
+         Integer(2, 32, name='min_samples_split'),
+         Integer(1, 4, name='min_samples_leaf'),
+         Categorical(['False', 'True'], name='bootstrap')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = RandomForestClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=-1, scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_RF = gp_minimize(objective, space, n_calls=150, random_state=0)
+
+"Best score=%.4f" % res_gp_RF.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_RF.x[0], res_gp_RF.x[1],
+                            res_gp_RF.x[2], res_gp_RF.x[3],
+                            res_gp_RF.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp_RF)
+
+# On the test set
+rforest = RandomForestClassifier(n_estimators=36, criterion='gini', max_depth=56, min_samples_split=2, min_samples_leaf=1, bootstrap='False')
+rforest.fit(X_train, list(y_train))
+rforest.predict(X_test)
+rforest.score(X_test,list(y_test))
+
+
+##### Neural Netowork
+from sklearn.neural_network import MLPClassifier
+from skopt.space import Real, Integer, Categorical
+from skopt.utils import use_named_args
+from sklearn.model_selection import cross_val_score
+
+# The list of hyper-parameters we want to optimize. For each one we define the bounds,
+# the corresponding scikit-learn parameter name, as well as how to sample values
+# from that dimension (`'log-uniform'` for the learning rate)
+space = [Categorical(['identity', 'logistic', 'tanh', 'relu'], name='activation'),
+         Categorical(['lbfgs', 'sgd', 'adam'], name='solver'),
+         Categorical(['constant', 'invscaling', 'adaptive'], name='learning_rate'),
+         Real(10 ** -6, 10 ** -2, "log-uniform", name='alpha'),
+         Integer(2, 200, name='hidden_layer_sizes')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = MLPClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=7,
+                                    scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_NN = gp_minimize(objective, space, n_calls=100, random_state=0)
+
+"Best score=%.4f" % res_gp_NN.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_NN.x[0], res_gp_NN.x[1],
+                            res_gp_NN.x[2], res_gp_NN.x[3],
+                            res_gp_NN.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp_NN)
+
+# On the test set
+neural = MLPClassifier(activation='identity', solver='lbfgs', learning_rate='invscaling', alpha=0.01, hidden_layer_sizes=200)
+neural.fit(X_train, list(y_train))
+neural.predict(X_test)
+neural.score(X_test,list(y_test))
+
+
+#####
+################ 15d - all accelerator divices
+df.columnsdf_train_15d = df[['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc', 'LA_xacc', 'LA_yacc', 'LA_zacc',  'LL_xacc', 'LL_yacc', 'LL_zacc', 'Action', 'Subject', 'Segment']]
+
+def distance_fifteen(df, df_9d):
+    origin = df[['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc', 'LA_xacc', 'LA_yacc', 'LA_zacc',  'LL_xacc', 'LL_yacc', 'LL_zacc']][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
+    distance = pd.DataFrame(index=list(range(0, 1140)), columns=['distance_Ax', 'distance_Ay', 'distance_Az', 'distance_Lx', 'distance_Ly', 'distance_Lz'])
+    for i in range(1, 20):
+        for j in range(1, 61):
+            distance['distance_Tx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_xacc'].values, df['T_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ty'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_yacc'].values, df['T_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Tz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_zacc'].values, df['T_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ax'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_xacc'].values, df['RA_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ay'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_yacc'].values, df['RA_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Az'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_zacc'].values, df['RA_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Lx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_xacc'].values, df['RL_xacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Ly'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_yacc'].values, df['RL_yacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['distance_Lz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_zacc'].values, df['RL_zacc'][df['Action'] == i][df['Subject'] == 1][df['Segment'] == j].values)
+            distance['Activity'][(i - 1) * 60 + j - 1] = i
+    return distance
+
+result_9d = distance_nine(df_train_9d)
+#ax = plt.axes(projection='3d')
+#colors = result_9d['observation']
+#ax.scatter(result_9d['distance_x'], result_9d['distance_y'], result_9d['distance_z'], c=colors)
+
+# NORMALISED
+min_max_scaler = preprocessing.MinMaxScaler()
+np_scaled = min_max_scaler.fit_transform(result_9d[['distance_Tx', 'distance_Ty', 'distance_Tz', 'distance_Ax', 'distance_Ay', 'distance_Az', 'distance_Lx', 'distance_Ly', 'distance_Lz']])
+result_normalised_9d = pd.DataFrame(np_scaled)
+result_normalised_9d['Activity'] = result_9d['Activity']
+#ax = plt.axes(projection='3d')
+#colors = result_normalised_9d['Activity']
+#ax.scatter(result_normalised_9d[0], result_normalised_9d[1], result_normalised_9d[2], c=colors)
+
+# Train test split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(result_normalised_9d[[0, 1, 2, 3, 4, 5, 6, 7, 8]], result_normalised_9d['Activity'], test_size=0.2, random_state=42)
+X_train.columns = ['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']
+
+#### KNeighbors
+from sklearn.neighbors import KNeighborsClassifier
+neigh = KNeighborsClassifier(n_neighbors=5)
+neigh.fit(X_train, list(y_train))
+neigh.predict(X_test)
+neigh.score(X_test,list(y_test))
+list(y_test) - neigh.predict(X_test)
+
+# Parameter tuning
+from sklearn.neighbors import KNeighborsClassifier
+from skopt.space import Real, Integer, Categorical
+from skopt.utils import use_named_args
+from sklearn.model_selection import cross_val_score
+
+# The list of hyper-parameters we want to optimize. For each one we define the bounds,
+# the corresponding scikit-learn parameter name, as well as how to sample values
+# from that dimension (`'log-uniform'` for the learning rate)
+space = [Integer(1, 100, name='n_neighbors'),
+         Categorical(['kd_tree', 'ball_tree', 'brute'], name='algorithm'),
+         Categorical(['uniform', 'distance'], name='weights'),
+         Integer(1, 3, name='p')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = KNeighborsClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=-1,
+                                    scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_KN = gp_minimize(objective, space, n_calls=100, random_state=0)
+
+"Best score=%.4f" % res_gp_KN.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_KN.x[0], res_gp_KN.x[1],
+                            res_gp_KN.x[2], res_gp_KN.x[3],
+                            res_gp_KN.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp)
+
+# On the test set
+neigh = KNeighborsClassifier(n_neighbors=1, algorithm='brute', weights='distance', p=2)
+neigh.fit(X_train, list(y_train))
+neigh.predict(X_test)
+neigh.score(X_test,list(y_test))
+
+
+######### Random Forest
+from sklearn.ensemble import RandomForestClassifier
+space = [Integer(1, 100, name='n_estimators'),
+         Categorical(['gini', 'entropy'], name='criterion'),
+         Integer(1, 100, name='max_depth'),
+         Integer(2, 32, name='min_samples_split'),
+         Integer(1, 4, name='min_samples_leaf'),
+         Categorical(['False', 'True'], name='bootstrap')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = RandomForestClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=-1, scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_RF = gp_minimize(objective, space, n_calls=150, random_state=0)
+
+"Best score=%.4f" % res_gp_RF.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_RF.x[0], res_gp_RF.x[1],
+                            res_gp_RF.x[2], res_gp_RF.x[3],
+                            res_gp_RF.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp_RF)
+
+# On the test set
+rforest = RandomForestClassifier(n_estimators=36, criterion='gini', max_depth=56, min_samples_split=2, min_samples_leaf=1, bootstrap='False')
+rforest.fit(X_train, list(y_train))
+rforest.predict(X_test)
+rforest.score(X_test,list(y_test))
+
+
+##### Neural Netowork
+from sklearn.neural_network import MLPClassifier
+from skopt.space import Real, Integer, Categorical
+from skopt.utils import use_named_args
+from sklearn.model_selection import cross_val_score
+
+# The list of hyper-parameters we want to optimize. For each one we define the bounds,
+# the corresponding scikit-learn parameter name, as well as how to sample values
+# from that dimension (`'log-uniform'` for the learning rate)
+space = [Categorical(['identity', 'logistic', 'tanh', 'relu'], name='activation'),
+         Categorical(['lbfgs', 'sgd', 'adam'], name='solver'),
+         Categorical(['constant', 'invscaling', 'adaptive'], name='learning_rate'),
+         Real(10 ** -6, 10 ** -2, "log-uniform", name='alpha'),
+         Integer(2, 200, name='hidden_layer_sizes')]
+
+# this decorator allows your objective function to receive a the parameters as
+# keyword arguments. This is particularly convenient when you want to set scikit-learn
+# estimator parameters
+@use_named_args(space)
+def objective(**params):
+    reg = MLPClassifier()
+    reg.set_params(**params)
+
+    return -np.mean(cross_val_score(reg, X_train[['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']], list(y_train), cv=5, n_jobs=7,
+                                    scoring="accuracy"))
+
+# Optimize
+from skopt import gp_minimize
+res_gp_NN = gp_minimize(objective, space, n_calls=100, random_state=0)
+
+"Best score=%.4f" % res_gp_NN.fun
+
+print("""Best parameters:
+- max_depth=%d
+- learning_rate=%.6f
+- max_features=%d
+- min_samples_split=%d
+- min_samples_leaf=%d""" % (res_gp_NN.x[0], res_gp_NN.x[1],
+                            res_gp_NN.x[2], res_gp_NN.x[3],
+                            res_gp_NN.x[4]))
+
+# PLot of convergence
+from skopt.plots import plot_convergence
+plot_convergence(res_gp_NN)
+
+# On the test set
+neural = MLPClassifier(activation='identity', solver='lbfgs', learning_rate='invscaling', alpha=0.01, hidden_layer_sizes=200)
+neural.fit(X_train, list(y_train))
+neural.predict(X_test)
+neural.score(X_test,list(y_test))
 
 
 
-################### FOR ALL DATA
+
+
+
+
+################### FOR ALL DATA / skip all data problem
 
 # three dimension
 df_train_all = df[['T_xacc', 'T_yacc', 'T_zacc', 'Action', 'Subject', 'Segment']]
@@ -357,3 +751,8 @@ neigh = KNeighborsClassifier(n_neighbors=10, algorithm='ball_tree', weights='dis
 neigh.fit(X_train, list(y_train))
 neigh.predict(X_test)
 neigh.score(X_test,list(y_test))
+
+
+import multiprocessing
+
+multiprocessing.cpu_count()
