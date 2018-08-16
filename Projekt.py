@@ -670,14 +670,106 @@ def distance_three(df):
                 distance['observation'][(i - 1) * 480 + (j - 1)*8 + (k-1)] = i
     return distance
 
- 
+origin = df[['T_xacc', 'T_yacc', 'T_zacc']][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
+
+def distance_three_test(df):
+    distance = pd.DataFrame(index=list(range(0, 1140)), columns=['observation', 'distance_x', 'distance_y', 'distance_z'])
+    for i in range(1, 20):
+        for j in range(1, 61):
+            test = df['T_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['distance_x'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_xacc'].values, test.values)
+            test = df['T_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['distance_y'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_yacc'].values, test.values)
+            test = df['T_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['distance_z'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_zacc'].values, test.values)
+            distance['observation'][(i - 1) * 60 + j - 1] = i
+    return distance
+
+import multiprocessing
+
 def df_multiprocessing(df):
     pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     list_of_data = []
     for i in range(1,9):
-        list_of_data.append(df[['T_xacc', 'T_yacc', 'T_zacc']][df['Subject'] == i])
-    result = pool.map(distance_three, list_of_data)
+        list_of_data.append(df[['T_xacc', 'T_yacc', 'T_zacc', 'Action', 'Segment']][df['Subject'] == i])
+    result = pool.map(distance_three_test, list_of_data)
     return list(result)
+
+result_mult = df_multiprocessing(df)
+result_mult = pd.concat(result_mult)
+#################################
+columns = ['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'LA_xacc', 'LA_yacc', 'LA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc', 'LL_xacc', 'LL_yacc', 'LL_zacc']
+
+origin = df[columns][df['Action'] == 1][df['Subject'] == 1][df['Segment'] == 1]
+
+def distance_15d(df):
+    distance = pd.DataFrame(index=list(range(0, 1140)), columns=['Activity', 'Tx', 'Ty', 'Tz', 'RAx', 'RAy', 'RAz', 'LAx', 'LAy', 'LAz', 'RLx', 'RLy', 'RLz', 'LLx', 'LLy', 'LLz'])
+    for i in range(1, 20):
+        for j in range(1, 61):
+            test = df['T_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['Tx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_xacc'].values, test.values)
+            test = df['T_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['Ty'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_yacc'].values, test.values)
+            test = df['T_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['Tz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['T_zacc'].values, test.values)
+
+            test = df['RA_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RAx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_xacc'].values, test.values)
+            test = df['RA_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RAy'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_yacc'].values, test.values)
+            test = df['RA_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RAz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RA_zacc'].values, test.values)
+
+            test = df['LA_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LAx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LA_xacc'].values, test.values)
+            test = df['LA_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LAy'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LA_yacc'].values, test.values)
+            test = df['LA_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LAz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LA_zacc'].values, test.values)
+
+            test = df['RL_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RLx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_xacc'].values, test.values)
+            test = df['RL_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RLy'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_yacc'].values, test.values)
+            test = df['RL_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['RLz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['RL_zacc'].values, test.values)
+
+            test = df['LL_xacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LLx'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LL_xacc'].values, test.values)
+            test = df['LL_yacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LLy'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LL_yacc'].values, test.values)
+            test = df['LL_zacc'][df['Action'] == i][df['Segment'] == j]
+            distance['LLz'][(i - 1) * 60 + j - 1] = DTWDistance(origin['LL_zacc'].values, test.values)
+            distance['Activity'][(i - 1) * 60 + j - 1] = i
+    return distance
+
+def df_multiprocessing(df):
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
+    list_of_data = []
+    for i in range(1, 9):
+        list_of_data.append(df[['T_xacc', 'T_yacc', 'T_zacc', 'RA_xacc', 'RA_yacc', 'RA_zacc', 'LA_xacc', 'LA_yacc', 'LA_zacc', 'RL_xacc', 'RL_yacc', 'RL_zacc', 'LL_xacc', 'LL_yacc', 'LL_zacc', 'Action', 'Segment']][df['Subject'] == i])
+    result = pool.map(distance_15d, list_of_data)
+    return list(result)
+
+result_15d = df_multiprocessing(df)
+result_15d = pd.concat(result_15d)
+
+# NORMALISED
+min_max_scaler = preprocessing.MinMaxScaler()
+np_scaled = min_max_scaler.fit_transform(result_15d[['Tx', 'Ty', 'Tz', 'RAx', 'RAy', 'RAz', 'LAx', 'LAy', 'LAz', 'RLx', 'RLy', 'RLz', 'LLx', 'LLy', 'LLz']])
+result_normalised_15d = pd.DataFrame(np_scaled)
+result_normalised_15d['Activity'] = result_9d['Activity']
+#ax = plt.axes(projection='3d')
+#colors = result_normalised_9d['Activity']
+#ax.scatter(result_normalised_9d[0], result_normalised_9d[1], result_normalised_9d[2], c=colors)
+
+result_15d.to_csv('data_15d.csv')
+result_normalised_15d.to_csv('data_normalised_15d.csv')
+
+# Train test split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(result_normalised_9d[[0, 1, 2, 3, 4, 5, 6, 7, 8]], result_normalised_9d['Activity'], test_size=0.2, random_state=42)
+X_train.columns = ['Tx', 'Ty', 'Tz', 'Ax', 'Ay', 'Az', 'Lx', 'Ly', 'Lz']
 
 result_all = distance_three(df_train_all)
 ax = plt.axes(projection='3d')
