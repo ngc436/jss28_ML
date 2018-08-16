@@ -670,6 +670,15 @@ def distance_three(df):
                 distance['observation'][(i - 1) * 480 + (j - 1)*8 + (k-1)] = i
     return distance
 
+ 
+def df_multiprocessing(df):
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
+    list_of_data = []
+    for i in range(1,9):
+        list_of_data.append(df[['T_xacc', 'T_yacc', 'T_zacc']][df['Subject'] == i])
+    result = pool.map(distance_three, list_of_data)
+    return list(result)
+
 result_all = distance_three(df_train_all)
 ax = plt.axes(projection='3d')
 colors = result_all['observation']
