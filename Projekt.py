@@ -1,3 +1,4 @@
+# Packages
 import pandas as pd
 import math
 import itertools
@@ -15,7 +16,10 @@ from sklearn.model_selection import cross_val_score
 from skopt import gp_minimize
 from skopt.plots import plot_convergence
 from sklearn.metrics import confusion_matrix
+from sklearn.ensemble import RandomForestClassifier
 
+
+# Create data
 COLUMN_NAMES = ['T_xacc', 'T_yacc', 'T_zacc', 'T_xgyro', 'T_ygyro', 'T_zgyro', 'T_xmag', 'T_ymag', 'T_zmag',
                 'RA_xacc', 'RA_yacc', 'RA_zacc', 'RA_xgyro', 'RA_ygyro', 'RA_zgyro', 'RA_xmag', 'RA_ymag', 'RA_zmag',
                 'LA_xacc', 'LA_yacc', 'LA_zacc', 'LA_xgyro', 'LA_ygyro', 'LA_zgyro', 'LA_xmag', 'LA_ymag', 'LA_zmag',
@@ -23,7 +27,6 @@ COLUMN_NAMES = ['T_xacc', 'T_yacc', 'T_zacc', 'T_xgyro', 'T_ygyro', 'T_zgyro', '
                 'LL_xacc', 'LL_yacc', 'LL_zacc', 'LL_xgyro', 'LL_ygyro', 'LL_zgyro', 'LL_xmag', 'LL_ymag', 'LL_zmag']
 ADDITIONAL = COLUMN_NAMES + ['Action', 'Subject', 'Segment']
 
-# Create data
 def create_df(dir_name):
     list_of_frames = []
     for subdir, dirs, files in os.walk(dir_name):
@@ -39,7 +42,6 @@ def create_df(dir_name):
     result.apply(pd.to_numeric)
     return result
 
-# CODE MICHAEL
 df =  pd.read_csv('prepared.csv')
 
 # DTW function
@@ -208,8 +210,7 @@ plot_confusion_matrix(cnf_matrix, classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
 plt.show()
 
 
-######### Random Forest
-from sklearn.ensemble import RandomForestClassifier
+######### Random Forest ############
 space = [Integer(1, 100, name='n_estimators'),
          Categorical(['gini', 'entropy'], name='criterion'),
          Integer(1, 100, name='max_depth'),
@@ -235,14 +236,7 @@ res_gp_all_RF = gp_minimize(objective, space, n_calls=150, random_state=0)
 
 "Best score=%.4f" % res_gp_all_RF.fun
 
-print("""Best parameters:
-- max_depth=%d
-- learning_rate=%.6f
-- max_features=%d
-- min_samples_split=%d
-- min_samples_leaf=%d""" % (res_gp_all_RF.x[0], res_gp_all_RF.x[1],
-                            res_gp_all_RF.x[2], res_gp_all_RF.x[3],
-                            res_gp_all_RF.x[4]))
+print(res_gp_all_RF.x)
 
 # PLot of convergence
 plot_convergence(res_gp_all_RF)
@@ -268,18 +262,12 @@ plt.show()
 
 
 ##### NEURAL NETWORK ########
-# The list of hyper-parameters we want to optimize. For each one we define the bounds,
-# the corresponding scikit-learn parameter name, as well as how to sample values
-# from that dimension (`'log-uniform'` for the learning rate)
 space = [Categorical(['identity', 'logistic', 'tanh', 'relu'], name='activation'),
          Categorical(['lbfgs', 'sgd', 'adam'], name='solver'),
          Categorical(['constant', 'invscaling', 'adaptive'], name='learning_rate'),
          Real(10 ** -6, 10 ** -2, "log-uniform", name='alpha'),
          Integer(2, 200, name='hidden_layer_sizes')]
 
-# this decorator allows your objective function to receive a the parameters as
-# keyword arguments. This is particularly convenient when you want to set scikit-learn
-# estimator parameters
 @use_named_args(space)
 def objective(**params):
     reg = MLPClassifier()
@@ -311,8 +299,3 @@ np.set_printoptions(precision=2)
 plt.figure()
 plot_confusion_matrix(cnf_matrix, classes=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], title='Confusion matrix Neural Network')
 plt.show()
-
-
-
-
-
